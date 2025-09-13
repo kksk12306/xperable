@@ -96,6 +96,12 @@ struct xperable_target {
 #ifdef TARGET_ABL_O77
 #include "target-o77.c"
 #endif
+#ifdef TARGET_ABL_P118
+#include "target-p118.c"
+#endif
+#ifdef TARGET_ABL_Q207
+#include "target-q207.c"
+#endif
 
 
 static struct xperable_target yoshino_abl_targets[] = {
@@ -104,6 +110,12 @@ static struct xperable_target yoshino_abl_targets[] = {
 #endif
 #ifdef TARGET_ABL_O77
     XPERABLE_TARGET("X_Boot_MSM8998_LA1.1_O_77", o77),
+#endif
+#ifdef TARGET_ABL_P118
+    XPERABLE_TARGET("X_Boot_SDM845_LA2.0_P_118", p118),
+#endif
+#ifdef TARGET_ABL_Q207
+    XPERABLE_TARGET("X_Boot_SDM845_LA2.0.1_Q_207", q207),
 #endif
     { .ablver = NULL }
 };
@@ -1000,6 +1012,7 @@ static int test8(struct fbusb *dev, int size, int offset, const char *arg)
     if (res <= 0 || cbd <= 0)
         goto test8_failed;
 
+#if 0
 //    res = abl_mem_read(dev, addr, cbd, buffer);
 //    if (res < 0)
 //        goto test8_failed;
@@ -1012,6 +1025,12 @@ static int test8(struct fbusb *dev, int size, int offset, const char *arg)
         goto test8_failed;
 
     PNFO("LinuxLoader @ 0x%08lx patched for test8\n", addr);
+#else
+    if (abl_patch_ext > 2)
+        PNFO("LinuxLoader @ 0x%08lx already patched for test8\n", addr);
+    else
+        PNFO("LinuxLoader @ 0x%08lx is NOT patched for test8!\n", addr);
+#endif
 
     fbusb_set_timeout(dev, 30 * 1000);
 
@@ -1055,7 +1074,7 @@ static int test9(struct fbusb *dev, int size, int offset)
     if (res < 0)
         goto test9_failed;
 
-    target->test8_patch(buffer, size, offset);
+    target->test9_patch(buffer, size, offset);
 
     res = abl_mem_write(dev, addr, target->vb_size, buffer);
     if (res < 0)
@@ -1079,6 +1098,7 @@ static void show_help(void)
     puts("usage: ./xperable [-h] [-v] [-q] [-V] [-Q] [-A] [-B] [-U]");
     puts("                  [-b maxsize] [-t timeout] [-o offset] [-s size]");
     puts("                  [-c command] [-x] [-0] [-1] [-2] [-3] [-4]");
+    puts("                  [-5] [-6] [-7] [-8] [-9] [-C cmdline]");
     puts("                  [-l] [-m] [-a addr] [-M module]");
     puts("                  [-r] [-O file] [-I file] [-w]");
     puts("                  [-P file] [-p patch]");
@@ -1107,7 +1127,7 @@ static void show_help(void)
     puts("  -7            fake unlock via 'green' -> 'orange' in kcmdline");
     puts("  -8            patch boot command to use two kernel images");
     puts("  -9            experimental stuff to test patch level override");
-    puts("  -l            read out bootloader log from RAM, needs -3 first");
+    puts("  -l            read out bootloader log from RAM, needs -4/-5 first");
     puts("  -m            list XBL UEFI modules with their base addresses");
     puts("  -a addr       set address used with BL RAM read and write options");
     puts("  -M module     set address for RAM r/w to base addr of UEFI module");
@@ -1117,7 +1137,7 @@ static void show_help(void)
     puts("  -w            write 'size' block of bytes to 'addr' base in BL");
     puts("  -P file       load PE file to tool's buffer doing relocation");
     puts("                to 'addr' base, setting 'size' to code boundary,");
-    puts("                applying -4 patch if detected LinuxLoader filename");
+    puts("                applying -4/-5 patch in case of LinuxLoader fname");
     puts("  -p patch      apply specified 'patch' sequence to tool's buffer");
     puts("");
     puts("'patch' is one or more 'subpatch' delimited by comma character");

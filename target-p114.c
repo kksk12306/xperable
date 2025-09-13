@@ -173,6 +173,8 @@ static void p114_setup_test5(unsigned char *buff, int size, int offset, int payl
     }
 }
 
+static void p114_test8_patch(unsigned char *ablcode, int size, int offset);
+
 static void p114_patch_abl(unsigned char *ablcode, int extended)
 {
         OPCODE(ablcode + 0x264A4 + 0x00, 0x1e, 0x00, 0x00, 0x14);  // b     #0x78 = [ 1e 00 00 14 ]                 skip "Remap recovery => FOTAKernel" functionality in favor of our code,
@@ -399,6 +401,9 @@ static void p114_patch_abl(unsigned char *ablcode, int extended)
 
             *(uint16_t *)(ablcode + 0xe7d6d) = override_flag;
         }
+
+        if (extended > 2)
+            p114_test8_patch(ablcode, 0, 0);
 }
 
 static const int p114_vb_size = 0xc000;

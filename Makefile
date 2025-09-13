@@ -6,7 +6,7 @@
 #
 
 
-CFLAGS := -D_GNU_SOURCE
+CFLAGS := -D_GNU_SOURCE -ggdb
 
 ifneq ($(wildcard target-o77.c),)
   DEFINES += TARGET_ABL_O77
@@ -18,6 +18,18 @@ ifneq ($(wildcard target-p114.c),)
   DEFINES += TARGET_ABL_P114
   TARGETS += target-p114.c
   DEPENDS += LinuxLoader-p114.pe boot/xfl-o77.mbn
+endif
+
+ifneq ($(wildcard target-p118.c),)
+  DEFINES += TARGET_ABL_P118
+  TARGETS += target-p118.c
+  DEPENDS += LinuxLoader-p118.pe
+endif
+
+ifneq ($(wildcard target-q207.c),)
+  DEFINES += TARGET_ABL_Q207
+  TARGETS += target-q207.c
+  DEPENDS += LinuxLoader-q207.pe
 endif
 
 ifeq ($(CROSS_BUILD),)
@@ -86,6 +98,20 @@ boot/bootloader_X_BOOT_MSM8998_LA2_0_P_114_X-FLASH-ALL-C93B.sin:
 		echo -e "  $@\nfile into the boot subdirectory here.\n"; false; \
 	else unzip -q -n -d boot 47.2.A.11.228/boot.zip *-C93B.sin; fi
 
+boot/bootloader_X_BOOT_SDM845_LA2_0_P_118_X-FLASH-ALL-B6B5.sin:
+	@if [ ! -e 52.0.A.8.50 ]; then \
+		mkdir -p boot; \
+		echo -e "\nDownload stock firmware 52.0.A.8.50 version and copy"; \
+		echo -e "  $@\nfile into the boot subdirectory here.\n"; false; \
+	else unzip -q -n -d boot 52.0.A.8.50/boot.zip *-B6B5.sin; fi
+
+boot/bootloader_X_BOOT_SDM845_LA2_0_1_Q_207_X-FLASH-ALL-B6B5.sin:
+	@if [ ! -e 52.1.A.3.49 ]; then \
+		mkdir -p boot; \
+		echo -e "\nDownload stock firmware 52.1.A.3.49 version and copy"; \
+		echo -e "  $@\nfile into the boot subdirectory here.\n"; false; \
+	else unzip -q -n -d boot 52.1.A.3.49/boot.zip *-B6B5.sin; fi
+
 %-$(CROSS_BUILD).o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
@@ -93,7 +119,7 @@ xperable-$(CROSS_BUILD).o: xperable.c $(TARGETS) fbusb.h logging.h $(DEPENDS)
 	$(CC) $(addprefix -D, $(DEFINES)) $(CFLAGS) -o $@ -c $<
 
 $(XPERABLE): xperable-$(CROSS_BUILD).o pe-load-$(CROSS_BUILD).o fbusb-$(CROSS_BUILD).o
-	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ -s $^ -lpe-parse -lusb-1.0
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lpe-parse -lusb-1.0
 
 pe-load-$(CROSS_BUILD).o: pe-load.cpp pe-parse/build-$(CROSS_BUILD)/pe-parser-library/libpe-parse.a
 	$(CXX) $(CFLAGS) -o $@ -c $< -Ipe-parse/pe-parser-library/include
@@ -136,15 +162,29 @@ LinuxLoader-p114.pe: boot/bootloader_X_BOOT_MSM8998_LA2_0_P_114_X-FLASH-ALL-C93B
 	uefi-firmware-parser -b -e -q -o boot/bootloader-p114/abl boot/bootloader-p114/abl_X_BOOT_MSM8998_LA2_0_P_114.mbn &>/dev/null
 	cp -p `find boot/bootloader-p114/abl -name section1.pe` $@
 
+LinuxLoader-p118.pe: boot/bootloader_X_BOOT_SDM845_LA2_0_P_118_X-FLASH-ALL-B6B5.sin
+	mkdir -p boot/bootloader-p118
+	tar xf $< -C boot/bootloader-p118
+	tar xf boot/bootloader-p118/bootloader.000 -C boot/bootloader-p118
+	uefi-firmware-parser -b -e -q -o boot/bootloader-p118/abl boot/bootloader-p118/abl_X_BOOT_SDM845_LA2_0_P_118.mbn &>/dev/null
+	cp -p `find boot/bootloader-p118/abl -name section1.pe` $@
+
+LinuxLoader-q207.pe: boot/bootloader_X_BOOT_SDM845_LA2_0_1_Q_207_X-FLASH-ALL-B6B5.sin
+	mkdir -p boot/bootloader-q207
+	tar xf $< -C boot/bootloader-q207
+	tar xf boot/bootloader-q207/bootloader.000 -C boot/bootloader-q207
+	uefi-firmware-parser -b -e -q -o boot/bootloader-q207/abl boot/bootloader-q207/abl_X_BOOT_SDM845_LA2_0_1_Q_207.mbn &>/dev/null
+	cp -p `find boot/bootloader-q207/abl -name section1.pe` $@
+
 clean:
 	rm -rf *-$(CROSS_BUILD).o pe-parse/build-$(CROSS_BUILD)
-	rm -rf boot/bootloader-o77 boot/bootloader-p114
+	rm -rf boot/bootloader-o77 boot/bootloader-p114 boot/bootloader-p118 boot/bootloader-q207
 
 distclean: clean
 	rm -rf pe-parse/build-*
 	rm -f *.o
 	rm -f xperable xperable.native xperable.x86_64 xperable.exe xperable.aarch64
-	rm -f LinuxLoader-o77.pe LinuxLoader-p114.pe boot/xfl-o77.mbn
+	rm -f LinuxLoader-o77.pe LinuxLoader-p114.pe LinuxLoader-p118.pe LinuxLoader-q207.pe boot/xfl-o77.mbn
 
 fullclean: distclean
 	rm -rf pe-parse
