@@ -448,6 +448,133 @@ that:
 
 
 
+It may be possible to use defaults preset in the exploit when testing
+with **Xperia XZ2 (H8266)**, like this:
+
+::
+
+  $ ./xperable -B -U -5
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test5 size = 0x400f90, offset = 0x2a7000, payloadsize = 0xfb000
+  [+] Got LinuxLoader base addr 0x988c1000 (0x988f3278)
+  [+] LinuxLoader @ 0x988c1000 patched successfully (usb buff @ 0x984c7000, distance = 0x003fa000)
+
+  $ ./xperable -l | grep -w 'BOOT\|XBOOT\|Build'
+  [+] Print log buffer, logbuf_pos = 0x0000, length = 0x3354:
+  S - QC_IMAGE_VERSION_STRING=BOOT.XF.2.0-00364-SDM845LZB-1
+  UEFI Ver    : 5.0.180827.BOOT.XF.2.0-00364-SDM845LZB-1
+  Build Info  : 64b Aug 27 2018 18:24:43
+  Loader Build Info: Aug 27 2018 18:27:12
+  XBOOT (1310-7079_X_Boot_SDM845_LA2.0_P_118)
+  Fastboot Build Info: Aug 27 2018 18:27:10
+
+With the above ``-5`` done succesfully bootloader can be unlocked (aka Y)
+or re-locked (aka X) in the following way:
+
+::
+
+  $ ./xperable -c "oem unlock Y" -1 -c reboot -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'oem unlock Y'
+  Device already unlocked
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot'
+
+With XZ2 already unlocked the default exploit setup no longer works, it seems
+memory layout is randomized differently. So we need to find new hit offset
+range if we like to re-lock bootloader back.
+
+::
+
+  $ ./xperable -B -U -s 0xfff000 -0
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test0 size = 0x00fff000, offset = 0x002a7000, cmd = 'download:00000010'
+    00000000-002a6ffc: [ 00 00 40 94 ]
+    002a7000-00ffeffc: [ 00 00 00 14 ]
+  [!] libusb_bulk_transfer failed: Operation timed out ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+  [!] libusb_bulk_transfer failed: Operation timed out ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+
+With fastboot hanging like above, the code execution is most likely confirmed.
+Now try to find a working buffer overflow size with test case ``-3``.
+Binary search may be used in order to narrow down the range.
+
+::
+
+  $ ./xperable -B -U -s 0xb00f90 -3
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test3 size = 0xb00f90, offset = 0x2a7000, cmd = 'download:00000010'
+  [+] test3 not hit: response = ''
+
+Not enough overflow size, try a bigger one next.
+
+::
+
+  $ ./xperable -B -U -s 0xc00f90 -3
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test3 size = 0xc00f90, offset = 0x2a7000, cmd = 'download:00000010'
+  [!] libusb_bulk_transfer failed: Input/Output Error ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+  [!] libusb_bulk_transfer failed: Input/Output Error ep=0x01 len=0x0011 size=0x0011
+  [!] fbusb_bufcmd send failed: reqsz=0x11 res=0xffffffff
+  [!] test3 failed: response = ''
+
+Resulted in reboot, so assuming code execution hit.
+Binary search to narrow down the exploit hit range.
+
+::
+
+  $ ./xperable -B -U -s 0xb80f90 -3
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test3 size = 0xb80f90, offset = 0x2a7000, cmd = 'download:00000010'
+  [!] libusb_bulk_transfer failed: Input/Output Error ep=0x81 len=0x0040 size=0x0040
+  [!] fbusb_bufcmd_resp recv failed (rspsz=0x0040)
+  [!] libusb_bulk_transfer failed: Input/Output Error ep=0x01 len=0x0011 size=0x0011
+  [!] fbusb_bufcmd send failed: reqsz=0x11 res=0xffffffff
+  [!] test3 failed: response = ''
+
+  $ ./xperable -B -U -s 0xb40f90 -3
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test3 size = 0xb40f90, offset = 0x2a7000, cmd = 'download:00000010'
+  [+] test3 succeeded: distance = 0xb23c00, hit from 0x032274, base = 0x988b9000 (offset=0x2a7000 size=0xb40f90)
+
+Getting a working attempt, try to re-lock bootloader back.
+Reboot into fastboot after successful ``-3`` (force reset may be needed).
+
+::
+
+  $ ./xperable -B -U -s 0xb40f90 -5
+  version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+  [+] Starting test5 size = 0xb40f90, offset = 0x2a7000, payloadsize = 0xfb000
+  [+] Got LinuxLoader base addr 0x988bb000 (0x988ed278)
+  [+] LinuxLoader @ 0x988bb000 patched successfully (usb buff @ 0x97d91000, distance = 0x00b2a000)
+
+  $ ./xperable -l | grep -w 'BOOT\|XBOOT\|Build'
+  [+] Print log buffer, logbuf_pos = 0x0000, length = 0x3437:
+  S - QC_IMAGE_VERSION_STRING=BOOT.XF.2.0-00364-SDM845LZB-1
+  UEFI Ver    : 5.0.180827.BOOT.XF.2.0-00364-SDM845LZB-1
+  Build Info  : 64b Aug 27 2018 18:24:43
+  Loader Build Info: Aug 27 2018 18:27:12
+  XBOOT (1310-7079_X_Boot_SDM845_LA2.0_P_118)
+  Fastboot Build Info: Aug 27 2018 18:27:10
+
+  $ ./xperable -c "oem unlock X" -1 -c reboot -1
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'oem unlock X'
+  Device already unlocked
+  [+] Starting test1 size = 0xffffffff, offset = 0xffffffff, cmd = 'reboot'
+
+While there is the "Device already unlocked" message, the exploit actually worked
+and bootloader had been re-locked:
+
+::
+
+  $ ./xperable -A
+  unlocked:no
+  version-baseband:1311-7920_52.1.A.3.49
+  version-bootloader:1310-7079_X_Boot_SDM845_LA2.0_P_118
+  secure:yes
+  product:H8266
+
+
 Linux Host Setup
 ----------------
 
