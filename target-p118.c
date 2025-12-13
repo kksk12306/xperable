@@ -269,9 +269,10 @@ static void p118_setup_test5_hitcode(unsigned char *buff, int pos, int jmpto)
 static void p118_setup_test5(unsigned char *buff, int size, int offset, int payloadsize)
 {
     int i, j, idx;
-    //int bs = 0x1000;
-    int bs = 0x400;
-    int shift = 0x3f8;
+    int bs = 0x1000;
+    int shift = 0x0000;
+    //int bs = 0x0400;
+    //int shift = 0x03f8;
 
     memset(buff, 0, size);
 //    for (i = 0x1000; i < size; i += 4) {
@@ -292,9 +293,11 @@ static void p118_setup_test5(unsigned char *buff, int size, int offset, int payl
         idx += 0x20; \
     } while (0)
 
-    HITENTRY(0x032274, 0x6152FF97, 0x0000, 0);
-    HITENTRY(0x032330, 0x003FFF97, 0x0000, -0xbc);
-    HITENTRY(0x006CFC, 0xD5FBFF97, 0x0040, 0x2b578);
+    HITENTRY(0x0050B0, 0x8FFCFF97, 0x0050, 0x2d1c4);            // 0x03235C [0x0050B0] -> 0x50C0
+    HITENTRY(0x032274, 0x6152FF97, 0x0000, 0);                  // 0x032274 -> 0x6BF8
+    HITENTRY(0x006CFC, 0xD5FBFF97, 0x0040, 0x2b578);            // 0x006CFC -> 0x5C50
+    HITENTRY(0x006D48, 0x27FCFF97, 0x0040, 0x2b52c);            // 0x006D48 -> 0x5DE4
+    HITENTRY(0x032330, 0x003FFF97, 0x0000, -0xbc);              // 0x032330 -> 0x1F30
     HITENTRY(0x000000, 0x00000000, 0x0000, 0);
 
     for (i = offset + shift; i < size; i += bs) {
@@ -309,8 +312,11 @@ static void p118_setup_test5(unsigned char *buff, int size, int offset, int payl
         //p118_setup_test5_hitcode(buff, i + 0x0f30, 0x1bf8);     // 0x032330 -> 0x1F30
         //p118_setup_test5_hitcode(buff, i + 0x0000, 0x0000);     // 0x032274 -> 0x6BF8
         //p118_setup_test5_hitcode(buff, i + 0x0338, 0x0000);     // 0x032330 -> 0x1F30
-        //p118_setup_test5_hitcode(buff, i + ((0x0bf8 - shift) & (bs - 1)), 0x0000);     // 0x032274 -> 0x6BF8
-        p118_setup_test5_hitcode(buff, i + ((0x0c50 - shift) & (bs - 1)), 0x0000);     // 0x006CFC -> 0x5C50   !!needs hitcode size max 0x58 to fit after 0x0bf8, partial cache of hex2uint64 with "download:0"!!
+
+        //p118_setup_test5_hitcode(buff, i + ((0x00c0 - shift) & (bs - 1)), 0x0000);     // 0x03235C [0x0050B0] -> 0x50C0
+        p118_setup_test5_hitcode(buff, i + ((0x0bf8 - shift) & (bs - 1)), 0x0000);     // 0x032274 -> 0x6BF8
+        //p118_setup_test5_hitcode(buff, i + ((0x0c50 - shift) & (bs - 1)), 0x0000);     // 0x006CFC -> 0x5C50   !!needs hitcode size max 0x58 to fit after 0x0bf8, partial cache of hex2uint64 with "download:0"!!
+        p118_setup_test5_hitcode(buff, i + ((0x0de4 - shift) & (bs - 1)), 0x0000);     // 0x006D48 -> 0x5DE4
         p118_setup_test5_hitcode(buff, i + ((0x0f30 - shift) & (bs - 1)), 0x0000);     // 0x032330 -> 0x1F30
         //OPCODE(buff + i + ((0x0f58 - shift) & (bs - 1)), 0xc0, 0x03, 0x5f, 0xd6);      // 0x0070D0 -> 0x6F88   ret = [ c0 03 5f d6 ]
 
@@ -379,13 +385,15 @@ static void p118_patch_abl(unsigned char *ablcode, int extended)
         OPCODE(ablcode + 0x2FA9C + 0x10, 0xe8, 0xff, 0xff, 0x17);  // b     #-0x60 = [ e8 ff ff 17 ]
 
         // patch debug logging verbosity check to always be the most verbose
+//#if 0
   OPCODE(ablcode + 0x07D68 + 0x00, 0x00, 0x00, 0x80, 0x12);  // mov   w0, #-1 = [ 00 00 80 12 ]
         //OPCODE(ablcode + 0x07D68 + 0x00, 0xe0, 0x03, 0x1f, 0xaa);  // mov   x0, xzr = [ e0 03 1f aa ]
   OPCODE(ablcode + 0x07D68 + 0x04, 0xc0, 0x03, 0x5f, 0xd6);  // ret = [ c0 03 5f d6 ]
-        //*(uint8_t *)(ablcode + 0xB98EC) = 0xff;                    //                                               more debug logging maybe
-        *(uint8_t *)(ablcode + 0xB98EC) = 0xfe;                    //                                               more debug logging possibly with disabled asserts
+        *(uint8_t *)(ablcode + 0xB98EC) = 0xff;                    //                                               more debug logging maybe
+        //*(uint8_t *)(ablcode + 0xB98EC) = 0xfe;                    //                                               more debug logging possibly with disabled asserts
         //*(uint8_t *)(ablcode + 0xB98EC) = 0x2e;                    //                                               just disable asserts (original value was 0x2f)
         //*(uint8_t *)(ablcode + 0xB98EC) = 0x00;                    //                                               disable debug logging for hopefully better stability
+//#endif
 
 
         // patch the "oem unlock" command to directly set unlock state with 'X' for 0 (locked) or with 'Y' for 1 (unlocked)
@@ -603,6 +611,13 @@ static void p118_patch_abl(unsigned char *ablcode, int extended)
 
         if (extended > 2)
             p118_test8_patch(ablcode, 0, 0);
+
+        OPCODE(ablcode + 0x31CA4, 0x1f, 0x20, 0x03, 0xd5);         // nop = [ 1f 20 03 d5 ]
+        OPCODE(ablcode + 0x03764, 0xc0, 0x03, 0x5f, 0xd6);         // ret = [ c0 03 5f d6 ]
+
+        OPCODE(ablcode + 0x36AB4, 0x00, 0x00, 0xc0, 0x14);         // b  #0x3000000 = [ 00 00 c0 14 ]
+        OPCODE(ablcode + 0x58AF0 + 0x00, 0xe0, 0x03, 0x1f, 0xaa);  // mov   x0, xzr = [ e0 03 1f aa ]
+        OPCODE(ablcode + 0x58AF0 + 0x04, 0xc0, 0x03, 0x5f, 0xd6);  // ret = [ c0 03 5f d6 ]
 }
 
 static const int p118_vb_size = 0xc000;

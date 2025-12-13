@@ -575,6 +575,76 @@ and bootloader had been re-locked:
   product:H8266
 
 
+Trying to boot twrp with locked xz2 fails most of the time so far as exploited
+fastboot state seems not to be stable enough or there may be a bug or something
+still missing that needs to be implemented, so this is still work in progress.
+But there has been eventually one case in which twrp booted successfully.
+
+.. raw:: html
+
+   <details>
+   <summary><a>two kernels exploit variant</a></summary>
+
+.. code-block::
+
+   $ ./xperable -v -v -V -V -B -U -x -x -x -5 -I boot_X-FLASH-ALL-B6B5.img -c twrp-akari.img -8
+         {00000019->00000019:OK} 67 65 74 76 61 72 3a 76 65 72 73 69 6f 6e 2d 62 "getvar:version-bootloader"
+         {00000040<-00000027:OK} 4f 4b 41 59 31 33 31 30 2d 37 30 37 39 5f 58 5f "OKAY1310-7079_X_Boot_SDM845_LA2.0_P_118"
+   version-bootloader: 1310-7079_X_Boot_SDM845_LA2.0_P_118
+   [.] Using p118 xperable target (offset = 0x2a7000, size = 0x400f90)
+         {0000000e->0000000e:OK} 67 65 74 76 61 72 3a 75 6e 6b 6e 6f 77 6e       "getvar:unknown"
+         {00000040<-0000001d:OK} 46 41 49 4c 47 65 74 56 61 72 20 56 61 72 69 61 "FAILGetVar Variable Not found"
+   [.] Code boundary of LinuxLoader-p118.pe is 0x000fb000
+   [+] Starting test5 size = 0x400f90, offset = 0x2a7000, payloadsize = 0xfb000
+         {00400f90->00400f90:OK} 64 6f 77 6e 6c 6f 61 64 3a 30 30 30 66 62 30 31 "download:000fb010..............................................."
+         {00000040<-0000000d:OK} 44 41 54 41 78 e2 8e 98 00 00 00 00 00          "DATAx........"
+   [+] Got LinuxLoader base addr 0x988bc000 (0x988ee278)
+         {000fb000->000fb000:OK} 4d 5a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "MZ..........................................................X..."
+         {00000040<-00000004:OK} 4f 4b 41 59                                     "OKAY"
+         {00000008->00000008:OK} 66 6c 61 73 68 3a 66 62                         "flash:fb"
+         {00000040<-00000017:OK} 46 41 49 4c 39 38 38 42 43 30 30 30 2f 39 38 34 "FAIL988BC000/984C5000.."
+   [+] LinuxLoader @ 0x988bc000 patched successfully (usb buff @ 0x984c5000, distance = 0x003f7000)
+   [+] Starting test8
+   [.] Code boundary of LinuxLoader-p118.pe is 0x000fb000
+   [+] LinuxLoader @ 0x988bc000 already patched for test8
+         {00000011->00000011:OK} 64 6f 77 6e 6c 6f 61 64 3a 30 36 62 35 61 30 31 "download:06b5a010"
+         {00000040<-0000000d:OK} 44 41 54 41 30 36 62 35 61 30 31 30 00          "DATA06b5a010."
+         {01000000->01000000:OK} 41 4e 44 52 4f 49 44 21 47 ef e5 00 00 80 00 00 "ANDROID!G...................................G..................."
+         {01000000->01000000:OK} 4d ae 7d 7f 8f 38 b9 18 72 7c 6e f9 3f 99 d8 3b "M.}..8..r|n.?..;yh-....`...:jm......C..W.......m......o.n......."
+         {01000000->01000000:OK} 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "................................................................"
+         {01000000->01000000:OK} 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 "................................................................"
+         {01000000->01000000:OK} 00 a0 b5 02 00 00 00 00 41 4e 44 52 4f 49 44 21 "........ANDROID!C.......8...........................<&]........."
+         {01000000->01000000:OK} 8a 11 cf 16 ea 12 c1 d9 85 f2 ba f1 7a 65 51 7c "............zeQ|Z%*M7^.,.....hX....1j..0.W..'y;....Xu...A!N.T.^."
+         {00b5a010->00b5a010:OK} 59 1f 61 6c 59 6f 33 62 20 57 62 8d 08 83 3e af "Y.alYo3b Wb...>.N...........zL..Zlsod..1.~..l..m..O....i..7.k.vk"
+         {00000040<-00000004:OK} 4f 4b 41 59                                     "OKAY"
+         {00000004->00000004:OK} 62 6f 6f 74                                     "boot"
+         {00000040<-00000004:OK} 4f 4b 41 59                                     "OKAY"
+   [+] test8 succeeded
+
+.. raw:: html
+
+   </details>
+
+Although decryption did not work in this case, adb shell could be used.
+
+.. raw:: html
+
+   <details>
+   <summary><a>adb shell</a></summary>
+
+.. code-block::
+
+  akari:/ # uname -a
+  Linux localhost 4.9.186-perf+ #1 SMP PREEMPT Thu Oct 2 22:00:09 2025 aarch64
+
+  akari:/ # cat /proc/cmdline
+  rcupdate.rcu_expedited=1 androidboot.selinux=permissive androidboot.console=ttyMSM0 androidboot.hardware=qcom androidboot.usbcontroller=a600000.dwc3 lpm_levels.sleep_disabled=1 msm_rtb.filter=0x237 service_locator.enable=1 swiotlb=2048 ehci-hcd.park=3 androidboot.configfs=true loop.max_part=7 panic_on_err=1 msm_drm.dsi_display0=dsi_panel_cmd_display:config0 zram.backend=z3fold video=vfb:640x400,bpp=32,memsize=3072000 twrpfastboot=1 buildvariant=userdebug androidboot.verifiedbootstate=green androidboot.keymaster=1 dm="1 vroot none ro 1,0 8127088 verity 1 PARTUUID=c351ca12-1a0f-43aa-911e-99daf8ba5dcd PARTUUID=c351ca12-1a0f-43aa-911e-99daf8ba5dcd 4096 4096 1015886 1015886 sha1 a16d90654215feadb5413403b2f72f007bdea3c1 aee087a5be3b982978c923f566a94613496b417f2af592639bc80d141e34dfe7 10 restart_on_corruption ignore_zero_blocks use_fec_from_device PARTUUID=c351ca12-1a0f-43aa-911e-99daf8ba5dcd fec_roots 2 fec_blocks 1023887 fec_start 1023887" root=/dev/dm-0 androidboot.vbmeta.device=PARTUUID=6995d1b0-2855-4d80-9e2b-9a386e09bd5e androidboot.vbmeta.avb_version=1.0 androidboot.vbmeta.device_state=locked androidboot.vbmeta.hash_alg=sha256 androidboot.vbmeta.size=3456 androidboot.vbmeta.digest=1504743017b278b3371f673ed3653b5766a47d152a13475c8ac3794b91f67861 androidboot.vbmeta.invalidate_on_error=yes androidboot.veritymode=enforcing androidboot.bootdevice=1d84000.ufshc androidboot.baseband=sdm lcdid_adc=1310806 androidboot.slot_suffix=_b skip_initramfs rootwait ro init=/init  oemandroidboot.imei=xxxxxxxxxxxxxx oemandroidboot.security=1 oemandroidboot.securityflags=0x00000002
+
+.. raw:: html
+
+   </details>
+
+
 Linux Host Setup
 ----------------
 
