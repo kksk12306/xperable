@@ -684,30 +684,26 @@ static int abl_mem_read(struct fbusb *dev, uint64_t addr, int size,
 static int file_rd_buff(const char *fname, void *buffer, int size)
 {
     int res;
-    int fd = open(fname, O_RDONLY);
-    if (fd < 0) {
-        PRNO("file_rd_buff open %s", fname);
+    FILE *f = fopen(fname, "rb");
+    if (f == NULL) {
+        PRNO("file_rd_buff fopen %s", fname);
         return -1;
     }
-    res = read(fd, buffer, size);
-    if (res < 0)
-        PRNO("file_rd_buff read %s", fname);
-    close(fd);
+    res = fread(buffer, 1, size, f);
+    fclose(f);
     return res;
 }
 
 static int file_wr_buff(const char *fname, const void *buffer, int size)
 {
     int res;
-    int fd = creat(fname, 0644);
-    if (fd < 0) {
-        PRNO("file_wr_buff creat %s", fname);
+    FILE *f = fopen(fname, "wb");
+    if (f == NULL) {
+        PRNO("file_wr_buff fopen %s", fname);
         return -1;
     }
-    res = write(fd, buffer, size);
-    if (res < 0)
-        PRNO("file_wr_buff write %s", fname);
-    close(fd);
+    res = fwrite(buffer, 1, size, f);
+    fclose(f);
     return res == size ? 0 : -1;
 }
 

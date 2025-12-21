@@ -118,18 +118,13 @@ int load_pe(const char *fname, void *buff, int maxsize, uint64_t base_va,
     int fd;
     int res;
 
-    fd = open(fname, O_RDONLY);
-    if (fd < 0) {
-        PRNO("open pe %s file", fname);
+    FILE *f = fopen(fname, "rb");
+    if (f == NULL) {
+        PRNO("fopen pe %s", fname);
         return -1;
     }
-    res = read(fd, buff, maxsize);
-    if (res < 0) {
-        PRNO("read pe %s file", fname);
-        return -1;
-    }
-    close(fd);
-
+    res = fread(buff, 1, maxsize, f);
+    fclose(f);
 
     parsed_pe *p = ParsePEFromFile(fname);
 
