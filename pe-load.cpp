@@ -49,7 +49,7 @@ static uint8_t *image_buff;
 static int fix_relocs(void *N, const VA &relocAddr, const reloc_type &type)
 {
   uint64_t *ptr;
-  uint64_t newbase = reinterpret_cast<uint64_t>(N);
+  uint64_t newbase = *static_cast<uint64_t *>(N);
 
   if (type == RELOC_ABSOLUTE)
     return 0;
@@ -141,7 +141,7 @@ int load_pe(const char *fname, void *buff, int maxsize, uint64_t base_va,
     for (i = 0; va < va_end; va++, i++)
         ReadByteAtVA(p, va, image_buff[i]);
 
-    IterRelocs(p, fix_relocs, (void *)base_va);
+    IterRelocs(p, fix_relocs, &base_va);
 
     if (code_boundary != NULL) {
         *code_boundary = 0;
