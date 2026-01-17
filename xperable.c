@@ -531,9 +531,11 @@ static int test5(struct fbusb *dev, int size, int offset, const char *fname)
     if (res != FASTBOOT_DATA) {
         if (*(uint32_t *)rxbuff != 0)
             return -1;
-        i -= 4;
-        memmove(rxbuff, rxbuff + 4, i);
-        memset(rxbuff + i, 0, 4);
+        if (i > 4) {
+            i -= 4;
+            memmove(rxbuff, rxbuff + 4, i);
+            memset(rxbuff + i, 0, 4);
+        }
     }
     size = 0;
     addr = 0;
