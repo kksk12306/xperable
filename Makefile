@@ -122,7 +122,7 @@ $(XPERABLE): xperable-$(CROSS_BUILD).o pe-load-$(CROSS_BUILD).o fbusb-$(CROSS_BU
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $^ -lpe-parse -lusb-1.0
 
 pe-load-$(CROSS_BUILD).o: pe-load.cpp pe-parse/build-$(CROSS_BUILD)/pe-parser-library/libpe-parse.a
-	$(CXX) $(CFLAGS) -o $@ -c $< -Ipe-parse/pe-parser-library/include
+	$(CXX) $(CFLAGS) -std=c++14 -o $@ -c $< -Ipe-parse/pe-parser-library/include
 
 pe-parse/CMakeLists.txt:
 	if [ -d .git ]; then git submodule update --init; \

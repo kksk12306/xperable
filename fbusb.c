@@ -64,12 +64,14 @@ struct fbusb *fbusb_init(int vid, int pid, int iface, int epi, int epo)
         goto err_exit1;
     }
 
+#if !defined(__APPLE__)
     if (libusb_kernel_driver_active(h, 0) == 1) {
         if (libusb_detach_kernel_driver(h, 0) != 0) {
             PERR("libusb_detach_kernel_driver failed\n");
             goto err_exit2;
         }
     }
+#endif
 
     res = libusb_claim_interface(h, iface);
     if (res < 0) {

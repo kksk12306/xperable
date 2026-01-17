@@ -1150,7 +1150,7 @@ static void show_help(void)
 }
 
 
-int main(int argc, unsigned char **argv)
+int main(int argc, char **argv)
 {
     int i;
     int res;
