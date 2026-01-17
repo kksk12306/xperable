@@ -75,9 +75,20 @@ else ifeq ($(CROSS_BUILD),x86_64)
     -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-unknown-linux-musl \
     -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
   LDFLAGS += -static
+
+else ifeq ($(CROSS_BUILD),i686)
+  XPERABLE ?= xperable.i686
+  CC := i686-unknown-linux-musl-gcc
+  CXX := i686-unknown-linux-musl-g++
+  PEPARSE_CMAKE_OPTS := -DCMAKE_SYSTEM_NAME=Linux \
+    -DCMAKE_C_COMPILER=$(CC) \
+    -DCMAKE_CXX_COMPILER=$(CXX) \
+    -DCMAKE_FIND_ROOT_PATH=/usr/i686-unknown-linux-musl \
+    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+  LDFLAGS += -static
 endif
 
-PEPARSE_CMAKE_OPTS += -DCMAKE_BUILD_TYPE=Release \
+PEPARSE_CMAKE_OPTS += -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DDEFAULT_CXX_FLAGS=-std=c++14 -DCMAKE_CXX_FLAGS=-Wno-deprecated-declarations \
   -DCMAKE_COLOR_MAKEFILE=OFF -DCMAKE_MESSAGE_LOG_LEVEL=WARNING
 LDFLAGS += -Lpe-parse/build-$(CROSS_BUILD)/pe-parser-library
@@ -183,7 +194,7 @@ clean:
 distclean: clean
 	rm -rf pe-parse/build-*
 	rm -f *.o
-	rm -f xperable xperable.native xperable.x86_64 xperable.exe xperable.aarch64
+	rm -f xperable xperable.native xperable.x86_64 xperable.exe xperable.aarch64 xperable.i686
 	rm -f LinuxLoader-o77.pe LinuxLoader-p114.pe LinuxLoader-p118.pe LinuxLoader-q207.pe boot/xfl-o77.mbn
 
 fullclean: distclean

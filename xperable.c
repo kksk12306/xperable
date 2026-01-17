@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <string.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <ctype.h>
 
 #ifdef __MINGW64__
@@ -594,7 +595,7 @@ static int test5(struct fbusb *dev, int size, int offset, const char *fname)
                 res = fbusb_bufcmd(dev, txbuff, strlen(txbuff), rxbuff, &i);
             }
 
-            PNFO("usb buff @ 0x%08x filled with 0x%016lx, size = 0x%08x\n",
+            PNFO("usb buff @ 0x%08x filled with 0x%016" PRIx64 ", size = 0x%08x\n",
                  offset, retoff, size);
 #endif
             return 0;
@@ -609,11 +610,11 @@ static int abl_set_addr(struct fbusb *dev, uint64_t addr, int rmode, uint64_t *p
     int res;
     uint64_t old;
 
-    snprintf(txbuff, 64, "erase:0%c%09lx", rmode ? 'X' : 'x', addr);
+    snprintf(txbuff, 64, "erase:0%c%09" PRIx64, rmode ? 'X' : 'x', addr);
     res = fbusb_strcmd(dev, txbuff, rxbuff, 65);
     if (res == FASTBOOT_FAIL && rxbuff[0] == '0' && rxbuff[1] == 'x') {
         old = strtoul(rxbuff, NULL, 16);
-        PDBG("Target addr set to 0%c%08lx (prev 0x%08lx)\n",
+        PDBG("Target addr set to 0%c%08" PRIx64 " (prev 0x%08" PRIx64 ")\n",
              rmode ? 'X' : 'x', addr, old);
         if (prev != NULL)
             *prev = old;
@@ -894,7 +895,7 @@ static int abl_list_modules(struct fbusb *dev)
     }
     POUT("UEFI modules:\n");
     for (i = 0; modules[i].name[0] != '\0'; i++)
-        POUT("  0x%09lx %s\n", modules[i].addr, modules[i].name);
+        POUT("  0x%09" PRIx64 " %s\n", modules[i].addr, modules[i].name);
 
     return 0;
 }
@@ -925,7 +926,7 @@ static int test6(struct fbusb *dev, int size, int offset)
     if (res < 0)
         goto test6_failed;
 
-    PNFO("VerifiedBootDxe @ 0x%08lx patched successfully\n", addr);
+    PNFO("VerifiedBootDxe @ 0x%08" PRIx64 " patched successfully\n", addr);
     return 0;
 
   test6_failed:
@@ -964,11 +965,11 @@ static int test7(struct fbusb *dev, int size, int offset)
     if (res < 0)
         goto test7_failed;
 
-    PNFO("LinuxLoader @ 0x%08lx patched to fake unlock\n", addr);
+    PNFO("LinuxLoader @ 0x%08" PRIx64 " patched to fake unlock\n", addr);
     return 0;
 
   test7_failed:
-    PERR("LinuxLoader @ 0x%08lx patching failed\n", addr);
+    PERR("LinuxLoader @ 0x%08" PRIx64 " patching failed\n", addr);
     return -1;
 }
 
@@ -1020,12 +1021,12 @@ static int test8(struct fbusb *dev, int size, int offset, const char *arg)
     if (res < 0)
         goto test8_failed;
 
-    PNFO("LinuxLoader @ 0x%08lx patched for test8\n", addr);
+    PNFO("LinuxLoader @ 0x%08" PRIx64 " patched for test8\n", addr);
 #else
     if (abl_patch_ext > 2)
-        PNFO("LinuxLoader @ 0x%08lx already patched for test8\n", addr);
+        PNFO("LinuxLoader @ 0x%08" PRIx64 " already patched for test8\n", addr);
     else
-        PNFO("LinuxLoader @ 0x%08lx is NOT patched for test8!\n", addr);
+        PNFO("LinuxLoader @ 0x%08" PRIx64 " is NOT patched for test8!\n", addr);
 #endif
 
     fbusb_set_timeout(dev, 30 * 1000);
@@ -1076,7 +1077,7 @@ static int test9(struct fbusb *dev, int size, int offset)
     if (res < 0)
         goto test9_failed;
 
-    PNFO("VerifiedBootDxe @ 0x%08lx patched with test9\n", addr);
+    PNFO("VerifiedBootDxe @ 0x%08" PRIx64 " patched with test9\n", addr);
     return 0;
 
   test9_failed:
