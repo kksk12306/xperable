@@ -78,7 +78,7 @@ else ifeq ($(CROSS_BUILD),x86_64)
 endif
 
 PEPARSE_CMAKE_OPTS += -DCMAKE_BUILD_TYPE=Release \
-  -DDEFAULT_CXX_FLAGS=-Wno-deprecated-declarations \
+  -DDEFAULT_CXX_FLAGS=-std=c++14 -DCMAKE_CXX_FLAGS=-Wno-deprecated-declarations \
   -DCMAKE_COLOR_MAKEFILE=OFF -DCMAKE_MESSAGE_LOG_LEVEL=WARNING
 LDFLAGS += -Lpe-parse/build-$(CROSS_BUILD)/pe-parser-library
 
