@@ -9,22 +9,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install MinGW and libusb
+      - name: Install MinGW
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64
+
+      - name: Download and Setup libusb
         run: |
-          sudo apt-get update
-          # 安装 MinGW 和 32 位的 libusb 开发包
-          sudo apt-get install -y mingw-w64 libusb-1.0-0-dev:i386
+          # 下载 libusb 官方 Windows 二进制包
+          curl -L https://github.com/libusb/libusb/releases/download/v1.0.26/libusb-1.0.26-binaries.7z -o libusb.7z
+          sudo apt-get install -y p7zip-full
+          7z x libusb.7z -olibusb_dist
+          
+          # 建立头文件和库文件的本地引用目录
+          mkdir -p libusb_include
+          cp libusb_dist/include/libusb-1.0/libusb.h libusb_include/
+          
+          # 拷贝 32 位 (MinGW) 所需的库文件
+          mkdir -p libusb_lib
+          cp libusb_dist/MinGW32/static/libusb-1.0.a libusb_lib/
+          # 同时保留动态库备用
+          cp libusb_dist/MinGW32/dll/libusb-1.0.dll.a libusb_lib/
 
       - name: Compile
         run: |
-          # 1. 创建 memmem 补丁
+          # 创建 memmem 补丁头文件
           cat <<EOF > compat.h
           #include <string.h>
           #include <stddef.h>
           static void *memmem(const void *h, size_t hl, const void *n, size_t nl) {
               if (nl == 0) return (void *)h;
               if (hl < nl) return NULL;
-              const char *ha = h; const char *ne = n;
+              const char *ha = (const char *)h; const char *ne = (const char *)n;
               for (size_t i = 0; i <= hl - nl; i++) {
                   if (memcmp(&ha[i], ne, nl) == 0) return (void *)&ha[i];
               }
@@ -32,14 +46,18 @@ jobs:
           }
           EOF
 
-          # 2. 编译并链接 libusb
-          # 我们使用 i686-w64-mingw32-gcc 来构建 Win32 程序
-          # 注意：由于是在 Linux 交叉编译，我们需要链接 windows 版的 libusb 
-          # 这里最简单的办法是直接告诉编译器链接相关的 Windows 系统库名
-          i686-w64-mingw32-gcc -include compat.h xperable.c fbusb.c -o xperable_32bit.exe -lusb-1.0 -lsetupapi -lwinusb
-          
+          # 编译指令说明：
+          # -I 指向刚才下载的头文件目录
+          # -L 指向刚才下载的库文件目录
+          # -static 尝试静态链接 libusb
+          i686-w64-mingw32-gcc -include compat.h xperable.c fbusb.c \
+            -I./libusb_include \
+            -L./libusb_lib \
+            -o xperable_32bit.exe \
+            -lusb-1.0 -lsetupapi -lwinusb
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: xperable-win32-libusb
+          name: xperable-win32-final
           path: xperable_32bit.exe
