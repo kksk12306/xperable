@@ -1,0 +1,27 @@
+name: Build xperable Win32 (Fix)
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # 改用更稳定的 Linux 环境
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install MinGW Compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64  # 安装 Linux 下的 Windows 交叉编译器
+
+      - name: Compile to Win32 EXE
+        run: |
+          # 使用 i686-w64-mingw32-gcc 来生成 32 位 Windows 程序
+          # 链接必要的 Windows 系统库：setupapi 和 winusb
+          i686-w64-mingw32-gcc xperable.c usb.c usb_windows.c -o xperable_32bit.exe -lsetupapi -lwinusb
+          
+      - name: Save the EXE file
+        uses: actions/upload-artifact@v4
+        with:
+          name: xperable-win32-bin
+          path: xperable_32bit.exe
