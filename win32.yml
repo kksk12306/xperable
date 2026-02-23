@@ -1,0 +1,25 @@
+name: Build xperable Win32
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MinGW x86
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x86  # 强制指定 32 位架构
+
+      - name: Compile Win32 Binary
+        run: |
+          # 编译命令：链接 Windows 系统必要的 USB 驱动库
+          gcc -m32 xperable.c usb.c usb_windows.c -o xperable_x86.exe -lsetupapi -lwinusb
+          
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: xperable-windows-32bit
+          path: xperable_x86.exe
