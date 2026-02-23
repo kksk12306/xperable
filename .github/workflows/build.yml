@@ -1,4 +1,4 @@
-name: Build xperable Win32 (Final Fix)
+name: Build xperable Win32 (Path Fix)
 
 on: [push, workflow_dispatch]
 
@@ -14,13 +14,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64
 
-      - name: Create memmem Patch
-        # 这一步是专门为 Windows 补全缺少的 memmem 函数
+      - name: Compile to Win32
         run: |
-          cat <<EOF > memmem_patch.c
+          # 1. 打印当前目录文件，确保我们在正确的文件夹里
+          ls -R
+          
+          # 2. 直接将 memmem 补丁代码写入一个新的头文件
+          cat <<EOF > compat.h
           #include <string.h>
           #include <stddef.h>
-          void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen) {
+          static void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen) {
               if (needlelen == 0) return (void *)haystack;
               if (haystacklen < needlelen) return NULL;
               const char *h = (const char *)haystack;
@@ -32,9 +35,16 @@ jobs:
           }
           EOF
 
-      - name: Compile to Win32
-        run: |
-          # 修正说明：
+          # 3. 编译命令：
+          # -include compat.h 强制让编译器在处理 xperable.c 前先读入我们的补丁
+          # 直接指定当前目录 ./ 确保找到文件
+          i686-w64-mingw32-gcc -include compat.h xperable.c usb_windows.c -o xperable_32bit.exe -lsetupapi -lwinusb
+          
+      - name: Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: xperable-win32-path-fixed
+          path: xperable_32bit.exe          # 修正说明：
           # 1. 删除了不存在的 usb.c
           # 2. 加入了刚才创建的 memmem_patch.c
           # 3. 链接 Windows 必要的驱动库
