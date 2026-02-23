@@ -1,4 +1,4 @@
-name: Build xperable Win32 (Final Version)
+name: Build xperable Win32 (Final)
 
 on: [push, workflow_dispatch]
 
@@ -12,24 +12,25 @@ jobs:
       - name: Install MinGW
         run: sudo apt-get update && sudo apt-get install -y mingw-w64 p7zip-full
 
-      - name: Setup libusb for Windows
+      - name: Setup libusb Windows Binaries
         run: |
-          # 下载官方二进制包
+          # 1. 下载官方 libusb 编译好的 Windows 二进制文件
           curl -L https://github.com/libusb/libusb/releases/download/v1.0.26/libusb-1.0.26-binaries.7z -o libusb.7z
           7z x libusb.7z -olibusb_dist
           
-          # 整理 32 位编译所需的头文件和库
+          # 2. 模拟代码中需要的头文件目录结构
           mkdir -p include/libusb-1.0
           cp libusb_dist/include/libusb-1.0/libusb.h include/libusb-1.0/
+          
+          # 3. 提取 32 位 MinGW 使用的静态库
           mkdir -p lib
           cp libusb_dist/MinGW32/static/libusb-1.0.a lib/
 
-      - name: Compile
+      - name: Compile Win32 Binary
         run: |
-          # 编译指令说明：
-          # 1. -D__MINGW64__：强制激活代码中原作者写的 memmem 补丁
-          # 2. -I./include：让编译器找到 <libusb-1.0/libusb.h>
-          # 3. -L./lib：定位 32 位静态库
+          # 编译说明：
+          # -D__MINGW64__：强制触发代码中的 memmem 补丁逻辑
+          # -I./include：让编译器能找到 <libusb-1.0/libusb.h>
           i686-w64-mingw32-gcc xperable.c fbusb.c \
             -D__MINGW64__ \
             -I./include \
@@ -37,8 +38,8 @@ jobs:
             -o xperable_32bit.exe \
             -lusb-1.0 -lsetupapi -lwinusb -lpthread
 
-      - name: Upload
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: xperable-win32-fixed
+          name: xperable-windows-32bit
           path: xperable_32bit.exe
