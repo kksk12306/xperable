@@ -1,4 +1,4 @@
-name: Build xperable Win32 (Verified)
+name: Build xperable Win32 (Verified Fix)
 
 on: [push, workflow_dispatch]
 
@@ -14,21 +14,22 @@ jobs:
 
       - name: Setup libusb for Windows
         run: |
-          # 下载 1.0.26 版本的官方 Windows 二进制包
+          # 1. 下载官方 libusb Windows 二进制发行版
           curl -L https://github.com/libusb/libusb/releases/download/v1.0.26/libusb-1.0.26-binaries.7z -o libusb.7z
           7z x libusb.7z -olibusb_dist
           
-          # 建立符合代码引用的目录结构
+          # 2. 建立符合代码要求的目录结构
           mkdir -p include/libusb-1.0
           cp libusb_dist/include/libusb-1.0/libusb.h include/libusb-1.0/
           
-          # 使用 32 位静态库
+          # 3. 提取 32 位 MinGW 静态库
           mkdir -p lib
           cp libusb_dist/MinGW32/static/libusb-1.0.a lib/
 
-      - name: Compile Win32 Binary
+      - name: Compile Win32
         run: |
-          # -D__MINGW64__ 激活作者自带的补丁
+          # 指令详解：
+          # -D__MINGW64__ 强制激活 xperable.c 中的补丁
           # -I./include 匹配 <libusb-1.0/libusb.h>
           i686-w64-mingw32-gcc xperable.c fbusb.c \
             -D__MINGW64__ \
@@ -36,7 +37,7 @@ jobs:
             -L./lib \
             -o xperable_32bit.exe \
             -lusb-1.0 -lsetupapi -lwinusb -lpthread
-
+          
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
