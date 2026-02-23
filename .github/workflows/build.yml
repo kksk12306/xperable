@@ -1,27 +1,47 @@
-name: Build xperable Win32 (Fix)
+name: Build xperable Win32 (Final Fix)
 
 on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # 改用更稳定的 Linux 环境
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install MinGW Compiler
+      - name: Install MinGW
         run: |
           sudo apt-get update
-          sudo apt-get install -y mingw-w64  # 安装 Linux 下的 Windows 交叉编译器
+          sudo apt-get install -y mingw-w64
 
-      - name: Compile to Win32 EXE
+      - name: Create memmem Patch
+        # 这一步是专门为 Windows 补全缺少的 memmem 函数
         run: |
-          # 使用 i686-w64-mingw32-gcc 来生成 32 位 Windows 程序
-          # 链接必要的 Windows 系统库：setupapi 和 winusb
-          i686-w64-mingw32-gcc xperable.c usb.c usb_windows.c -o xperable_32bit.exe -lsetupapi -lwinusb
+          cat <<EOF > memmem_patch.c
+          #include <string.h>
+          #include <stddef.h>
+          void *memmem(const void *haystack, size_t haystacklen, const void *needle, size_t needlelen) {
+              if (needlelen == 0) return (void *)haystack;
+              if (haystacklen < needlelen) return NULL;
+              const char *h = (const char *)haystack;
+              const char *n = (const char *)needle;
+              for (size_t i = 0; i <= haystacklen - needlelen; i++) {
+                  if (memcmp(&h[i], n, needlelen) == 0) return (void *)&h[i];
+              }
+              return NULL;
+          }
+          EOF
+
+      - name: Compile to Win32
+        run: |
+          # 修正说明：
+          # 1. 删除了不存在的 usb.c
+          # 2. 加入了刚才创建的 memmem_patch.c
+          # 3. 链接 Windows 必要的驱动库
+          i686-w64-mingw32-gcc xperable.c usb_windows.c memmem_patch.c -o xperable_32bit.exe -lsetupapi -lwinusb
           
-      - name: Save the EXE file
+      - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: xperable-win32-bin
+          name: xperable-win32-fixed
           path: xperable_32bit.exe
