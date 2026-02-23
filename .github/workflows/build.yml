@@ -1,4 +1,4 @@
-name: Build xperable Win32 (Force)
+name: Build xperable Win32 (Final)
 
 on: [push, workflow_dispatch]
 
@@ -12,13 +12,9 @@ jobs:
       - name: Install MinGW
         run: sudo apt-get update && sudo apt-get install -y mingw-w64
 
-      - name: Prepare and Compile
+      - name: Compile
         run: |
-          # 1. 强制将所有子目录下的 .c 和 .h 文件复制到当前根目录，消除路径干扰
-          find . -name "*.c" -exec cp {} . \;
-          find . -name "*.h" -exec cp {} . \;
-          
-          # 2. 创建补丁文件
+          # 1. 创建 Windows 缺失的 memmem 函数补丁
           cat <<EOF > compat.h
           #include <string.h>
           #include <stddef.h>
@@ -33,12 +29,12 @@ jobs:
           }
           EOF
 
-          # 3. 直接编译当前目录下的目标文件
-          # 明确只编译 xperable.c 和 usb_windows.c
-          i686-w64-mingw32-gcc -include compat.h xperable.c usb_windows.c -o xperable_32bit.exe -lsetupapi -lwinusb
+          # 2. 编译 xperable.c 和 fbusb.c
+          # -D_GNU_SOURCE 是为了尽可能开启一些兼容性定义
+          i686-w64-mingw32-gcc -include compat.h xperable.c fbusb.c -o xperable_32bit.exe -lsetupapi -lwinusb
           
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: xperable-win32-final
+          name: xperable-win32-ready
           path: xperable_32bit.exe
